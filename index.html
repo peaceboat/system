@@ -538,7 +538,7 @@
                 </div>
 
                 <div id="step-2-container">
-                    <div class="section-title">Passenger & Rooming 旅客資料與分房設定</div>
+                    <div class="section-title">Passenger &amp; Rooming 旅客資料與分房設定</div>
                     <div id="passengers-wrapper"></div>
                     <button type="button" class="btn-add" onclick="addPassenger()">+ 新增同行旅客 (最多新增 4 人)</button>
                     <button type="button" class="btn-submit" onclick="submitOrder()">確認新增訂單 Confirm Order</button>
@@ -1466,7 +1466,16 @@
 
             let sfNode = tr.querySelector('.adv-input[data-col="SF船費"]');
             if(sfNode) sfNode.value = fmtNum(baseSf); 
-            let taxNode = tr.querySelector('.adv-input[data-col="港務費"]'); if(taxNode) taxNode.value = fmtNum(pd.portTax);
+
+            let voyageDefs = window.voyageDefaults[groupCode];
+            let taxNode = tr.querySelector('.adv-input[data-col="港務費"]'); 
+            if(taxNode) {
+                if (voyageDefs && voyageDefs.portFee !== undefined && voyageDefs.portFee !== "") {
+                    taxNode.value = fmtNum(voyageDefs.portFee);
+                } else {
+                    taxNode.value = fmtNum(pd.portTax);
+                }
+            }
         } 
         calcGridRow(no);
     }
@@ -1895,10 +1904,26 @@
         });
 
         if (updates.length === 0) return customAlert("無資料可更新！", "warning"); 
-        showLoading("UPDATING...");
-        fetch(gasURL, { method: 'POST', body: JSON.stringify({ action: 'batchUpdateRows', updates: updates, changesLog: changesLog, operator: document.getElementById('current-username').innerText }) })
-        .then(res => res.json()).then(res => { hideLoading(); if(res.status === 'success') { isLogsDirty = true; customAlert(`整批寫入成功！`, "success"); searchList(); } else { customAlert("更新失敗：" + res.message, "error"); } })
-        .catch(err => { hideLoading(); customAlert("網路錯誤，請稍後再試。", "error"); });
+
+        let confirmHtml = `<div style="text-align:left; max-height:400px; overflow-y:auto;">`;
+        confirmHtml += `<div style="margin-bottom:15px; color:var(--text-main); font-weight:600; font-size:13px;">以下 ${updates.length} 筆資料將被修改，請確認內容無誤：</div>`;
+        changesLog.forEach(line => {
+            let escapedLine = String(line).replace(/'/g, "\\'");
+            confirmHtml += `<div style="padding:10px 12px; margin-bottom:8px; background:var(--sys-bg); border-radius:6px; font-size:12px; line-height:1.6; border-left:3px solid var(--gold); color:var(--text-main); word-break:break-word;">${escapedLine}</div>`;
+        });
+        confirmHtml += `</div>`;
+
+        document.querySelector('#custom-modal .modal-box').style.width = '600px';
+        document.querySelector('#custom-modal .modal-box').style.maxWidth = '90vw';
+
+        const executeBatchUpdate = () => {
+            showLoading("UPDATING...");
+            fetch(gasURL, { method: 'POST', body: JSON.stringify({ action: 'batchUpdateRows', updates: updates, changesLog: changesLog, operator: document.getElementById('current-username').innerText }) })
+            .then(res => res.json()).then(res => { hideLoading(); if(res.status === 'success') { isLogsDirty = true; customAlert(`整批寫入成功！`, "success"); searchList(); } else { customAlert("更新失敗：" + res.message, "error"); } })
+            .catch(err => { hideLoading(); customAlert("網路錯誤，請稍後再試。", "error"); });
+        };
+
+        customConfirm(confirmHtml, executeBatchUpdate);
     }
 
     async function runValidation() {
