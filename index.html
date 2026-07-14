@@ -1854,7 +1854,7 @@
         customAlert("已清空此人的同房代號，請點擊右上角【修改儲存更新】以寫入資料庫。", "success"); }
     }
 
-    function batchUpdateRows() {
+   function batchUpdateRows() {
         const rows = document.querySelectorAll('#list-body tr[id^="row-"]'); let hasInvalidDate = false;
         rows.forEach(tr => { let birthVal = tr.querySelector('.edit-birth').value.trim(); if (birthVal && !isValidDate(birthVal)) { hasInvalidDate = true; } });
         if (hasInvalidDate) return customAlert("列表中有生日日期格式不正確，請確認為有效的 YYYY/MM/DD！", "warning");
@@ -1862,10 +1862,25 @@
         const updates = []; const changesLog = [];
         rows.forEach(tr => {
             const no = tr.id.replace('row-', ''); const orig = window.currentGroupData.find(d => String(d.no) === no); if(!orig) return;
-            let fields = {}; let rowChanges = [];
-            const checkStr = (origVal, newVal, label, fieldKey) => { if (String(origVal).trim() !== String(newVal).trim()) { fields[fieldKey] = newVal; rowChanges.push(`${label} ➔ [${newVal}]`); } };
-            const checkNum = (origVal, newVal, label, fieldKey) => { let o = pNum(origVal); let n = pNum(newVal); if (o !== n) { fields[fieldKey] = n; rowChanges.push(`${label} ➔ [${n}]`); } };
             
+            let fields = {}; let rowChanges = [];
+            
+            // 修正1：調整判斷邏輯，帶出原數值與新數值，並加上排版標籤 (刪除線與粗體顏色)
+            const checkStr = (origVal, newVal, label, fieldKey) => { 
+                let oStr = String(origVal || '').trim(); let nStr = String(newVal || '').trim();
+                if (oStr !== nStr) { 
+                    fields[fieldKey] = newVal; 
+                    rowChanges.push(`&nbsp;&nbsp;• ${label}: <del style="color:#94A3B8;">${oStr || '(空)'}</del> ➔ <span style="color:var(--danger); font-weight:600;">${nStr || '(空)'}</span>`); 
+                } 
+            };
+            const checkNum = (origVal, newVal, label, fieldKey) => { 
+                let o = pNum(origVal); let n = pNum(newVal); 
+                if (o !== n) { 
+                    fields[fieldKey] = n; 
+                    rowChanges.push(`&nbsp;&nbsp;• ${label}: <del style="color:#94A3B8;">${fmtNum(o)}</del> ➔ <span style="color:var(--danger); font-weight:600;">${fmtNum(n)}</span>`); 
+                } 
+            };
+
             let reqColKey = window.currentGroupHeaders.includes("備註或需求") ? "備註或需求" : "特殊需求";
             checkStr(getVal(orig, reqColKey), tr.querySelector('.req-val').value, '備註或需求', reqColKey);
             checkStr(getVal(orig, "旅客姓名"), tr.querySelector('.edit-name').value, '旅客姓名', '旅客姓名');
@@ -1900,7 +1915,11 @@
 
             tr.querySelectorAll('.adv-input').forEach(input => { let c = input.getAttribute('data-col'); checkNum(getVal(orig, c), input.value, c, c); });
 
-            if (rowChanges.length > 0) { updates.push({no: no, fields: fields}); changesLog.push(`NO.${no} ${orig.name} (ID: ${orig.id||'--'}) ${rowChanges.join(', ')}`); }
+            // 修正2：將單筆旅客的各項變更使用 <br> 換行，並獨立區隔姓名標題
+            if (rowChanges.length > 0) { 
+                updates.push({no: no, fields: fields}); 
+                changesLog.push(`<div style="margin-bottom: 4px; font-weight: 700; color: var(--primary);">NO.${no} ${orig.name} (ID: ${orig.id||'--'})</div>${rowChanges.join('<br>')}`); 
+            }
         });
 
         if (updates.length === 0) return customAlert("無資料可更新！", "warning"); 
@@ -1913,7 +1932,7 @@
         });
         confirmHtml += `</div>`;
 
-        document.querySelector('#custom-modal .modal-box').style.width = '600px';
+        document.querySelector('#custom-modal .modal-box').style.width = '800px';
         document.querySelector('#custom-modal .modal-box').style.maxWidth = '90vw';
 
         const executeBatchUpdate = () => {
