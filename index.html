@@ -877,7 +877,43 @@
         if(tt.style.display === 'block') { tt.style.left = (e.clientX + 15) + 'px'; tt.style.top = (e.clientY + 15) + 'px'; } 
     }
 
-    function showLogDetails(content) { document.getElementById('log-detail-content').innerText = content; document.getElementById('log-detail-modal').classList.add('show'); }
+    // 自動判斷並洗淨 Log 的專用函數
+    function formatLogContentForDisplay(rawStr) {
+        let str = String(rawStr || "");
+        
+        // 1. 處理 GAS 可能將 Array stringify 存入的情況
+        try {
+            if (str.startsWith('[') && str.endsWith(']')) {
+                let parsed = JSON.parse(str);
+                if (Array.isArray(parsed)) str = parsed.join('\n\n');
+            }
+        } catch(e) {}
+
+        // 2. 針對舊有歷史紀錄（帶有 HTML 的），進行乾淨轉換
+        if (str.includes('<') && str.includes('>')) {
+            str = str.replace(/<br\s*\/?>/gi, '\n');
+            str = str.replace(/<\/div>/gi, '\n');
+            str = str.replace(/<\/p>/gi, '\n');
+            str = str.replace(/<\/li>/gi, '\n');
+            str = str.replace(/<li[^>]*>/gi, '• ');
+            str = str.replace(/&nbsp;/g, ' ');
+            str = str.replace(/<[^>]*>/g, ''); // 拔除剩餘所有 HTML 標籤
+        }
+
+        // 3. 將純文字被逗號相連的情況，盡量排版好
+        str = str.replace(/,(\s*\[NO\.)/g, '\n\n$1');
+        
+        // 4. 將連續多個換行縮減為兩個，保持版面整潔
+        str = str.replace(/\n{3,}/g, '\n\n');
+        
+        return str.trim();
+    }
+
+    function showLogDetails(content) { 
+        document.getElementById('log-detail-content').innerText = formatLogContentForDisplay(content); 
+        document.getElementById('log-detail-modal').classList.add('show'); 
+    }
+
     function copyLogDetails() { navigator.clipboard.writeText(document.getElementById('log-detail-content').innerText).then(() => customAlert('已複製明細到剪貼簿！', 'success')); }
 
     window.onload = function() {
@@ -1078,7 +1114,8 @@
         let commRate = isSS ? 0.15 : (isInside ? 0.18 : 0.15);
         if (childRemark === "2-6歲") commRate = 0; 
 
-        block.querySelector('.calc-comm-rate').value = (commRate * 100) + "%";
+        // 移除多餘的強制 15% 轉換，直接輸出小數值 (0.15 / 0.18)
+        block.querySelector('.calc-comm-rate').value = commRate;
         
         let baseTotal = sf - jgd - agtd + subA + subB + toilet + intlTax + visa + accRoom + upgRoom + portFee + tips + otherFee - posterDiscount;
         let commBase = sf - jgd - agtd; 
@@ -1251,7 +1288,8 @@
         }
 
         const groupCode = document.getElementById('global-groupCode').value;
-        const operatorAccount = document.getElementById('current-username').innerText; const finalData = [];
+        const operatorAccount = document.getElementById('current-username').innerText; 
+        const finalData = [];
         let hasPortMismatch = false;
         let needsSegmentPrompt = false;
 
@@ -1289,8 +1327,61 @@
             if(compiledData.length === 0) { customAlert("沒有可送出的旅客資料！", "warning"); return; }
             
             showLoading("PROCESSING DATA...");
-            fetch(gasURL, { method: 'POST', body: JSON.stringify({ action: 'addOrder', data: compiledData, operatorAccount: operatorAccount }) }).then(res => res.json()).then(res => {
-                hideLoading(); if(res.status === 'success'){ isLogsDirty = true; customAlert("已新增訂單", "success"); document.getElementById('orderForm').reset(); document.getElementById('passengers-wrapper').innerHTML = ''; document.getElementById('global-groupCode').value = ''; document.getElementById('step-2-container').style.opacity = '0'; setTimeout(() => document.getElementById('step-2-container').style.display = 'none', 400); passengerCount = 0; blockCounter = 0; window.scrollTo({ top: 0, behavior: 'smooth' }); const t = new Date().getTime(); fetch(gasURL + "?action=getGroupList&t=" + t).then(r => r.json()).then(r => { if(r.status === 'success') { const datalist = document.getElementById('groupOptions'); datalist.innerHTML = ""; r.data.forEach(group => { const opt = document.createElement('option'); opt.value = group; datalist.appendChild(opt); }); } }); } else { customAlert("寫入失敗：" + res.message, "error"); }
+            fetch(gasURL, { method: 'POST', body: JSON.stringify({ action: 'addOrder', data: compiledData, operatorAccount: operatorAccount }) })
+            .then(res => res.json())
+            .then(res => {
+                hideLoading(); 
+                if(res.status === 'success'){ 
+                    isLogsDirty = true; 
+                    
+                    // 強制前端自行發送完整的數值 Log
+                    let detailsText = compiledData.map(p => {
+                        return `[新增完整明細] 姓名: ${p.name} (ID: ${p.id||'--'})\n` +
+                               `  • 房型: ${p.roomType || '(空)'}\n` +
+                               `  • 登船/離船: ${p.boardPort || '(空)'} / ${p.offPort || '(空)'}\n` +
+                               `  • 當月優惠價: ${p.promotion || '(空)'}\n` +
+                               `  • 優惠特典: ${p.promoExtras || '(空)'}\n` +
+                               `  • SF船費: ${fmtNum(p.sf)}\n` +
+                               `  • 港務費: ${fmtNum(p.portFee)}\n` +
+                               `  • 小費: ${fmtNum(p.tips)}\n` +
+                               `  • 基本旅費總價: ${fmtNum(p.totalDirect)}\n` +
+                               `  • 佣金%: ${p.commRateStr}\n` +
+                               `  • 佣金: ${fmtNum(p.commission)}\n` +
+                               `  • SET應付: ${fmtNum(p.setPay)}`;
+                    }).join('\n\n');
+                    
+                    fetch(gasURL, {
+                        method: 'POST',
+                        body: JSON.stringify({ 
+                            action: 'addCustomLog', 
+                            operator: operatorAccount, 
+                            target: '航程 ' + groupCode, 
+                            actionName: '建立新訂單', 
+                            details: detailsText 
+                        })
+                    }).then(() => {
+                        customAlert("已新增訂單", "success");
+                        document.getElementById('orderForm').reset();
+                        document.getElementById('passengers-wrapper').innerHTML = ''; 
+                        document.getElementById('global-groupCode').value = ''; 
+                        document.getElementById('step-2-container').style.opacity = '0'; 
+                        setTimeout(() => document.getElementById('step-2-container').style.display = 'none', 400); 
+                        passengerCount = 0; blockCounter = 0; window.scrollTo({ top: 0, behavior: 'smooth' }); 
+                        
+                        const t = new Date().getTime(); 
+                        fetch(gasURL + "?action=getGroupList&t=" + t).then(r => r.json()).then(r => { 
+                            if(r.status === 'success') { 
+                                const datalist = document.getElementById('groupOptions'); 
+                                datalist.innerHTML = ""; 
+                                r.data.forEach(group => { 
+                                    const opt = document.createElement('option'); opt.value = group; datalist.appendChild(opt); 
+                                }); 
+                            } 
+                        }); 
+                    });
+                } else { 
+                    customAlert("寫入失敗：" + res.message, "error"); 
+                }
             }).catch(err => { hideLoading(); customAlert("NETWORK ERROR", "error"); });
         };
 
@@ -1429,7 +1520,7 @@
         let commRate = isSS ? 0.15 : (isInside ? 0.18 : 0.15); 
         if (childRemark === "2-6歲") commRate = 0; 
 
-        tr.querySelector('.edit-crate').value = (commRate * 100) + "%";
+        tr.querySelector('.edit-crate').value = commRate;
         let baseTotal = sf - jgd - agtd + subA + subB + toilet + intlTax + visa + accRoom + upgRoom + portFee + tips + otherFee - posterDiscount;
         let commBase = sf - jgd - agtd; 
         tr.querySelector('.edit-tot').value = fmtNum(baseTotal); 
@@ -1854,30 +1945,39 @@
         customAlert("已清空此人的同房代號，請點擊右上角【修改儲存更新】以寫入資料庫。", "success"); }
     }
 
-   function batchUpdateRows() {
-        const rows = document.querySelectorAll('#list-body tr[id^="row-"]'); let hasInvalidDate = false;
+    function batchUpdateRows() {
+        const rows = document.querySelectorAll('#list-body tr[id^="row-"]'); 
+        let hasInvalidDate = false;
         rows.forEach(tr => { let birthVal = tr.querySelector('.edit-birth').value.trim(); if (birthVal && !isValidDate(birthVal)) { hasInvalidDate = true; } });
         if (hasInvalidDate) return customAlert("列表中有生日日期格式不正確，請確認為有效的 YYYY/MM/DD！", "warning");
 
-        const updates = []; const changesLog = [];
+        const updates = []; 
+        const changesLog = [];   
+        const uiChangesLog = []; 
+
         rows.forEach(tr => {
-            const no = tr.id.replace('row-', ''); const orig = window.currentGroupData.find(d => String(d.no) === no); if(!orig) return;
+            const no = tr.id.replace('row-', ''); 
+            const orig = window.currentGroupData.find(d => String(d.no) === no); 
+            if(!orig) return;
             
-            let fields = {}; let rowChanges = [];
+            let fields = {}; 
+            let uiRowChanges = []; 
+            let dbRowChanges = [];
             
-            // 修正1：調整判斷邏輯，帶出原數值與新數值，並加上排版標籤 (刪除線與粗體顏色)
             const checkStr = (origVal, newVal, label, fieldKey) => { 
                 let oStr = String(origVal || '').trim(); let nStr = String(newVal || '').trim();
                 if (oStr !== nStr) { 
                     fields[fieldKey] = newVal; 
-                    rowChanges.push(`&nbsp;&nbsp;• ${label}: <del style="color:#94A3B8;">${oStr || '(空)'}</del> ➔ <span style="color:var(--danger); font-weight:600;">${nStr || '(空)'}</span>`); 
+                    uiRowChanges.push(`&nbsp;&nbsp;• ${label}: <del style="color:#94A3B8;">${oStr || '(空)'}</del> ➔ <span style="color:var(--danger); font-weight:600;">${nStr || '(空)'}</span>`); 
+                    dbRowChanges.push(`  • ${label}: ${oStr || '(空)'} ➔ ${nStr || '(空)'}`);
                 } 
             };
             const checkNum = (origVal, newVal, label, fieldKey) => { 
                 let o = pNum(origVal); let n = pNum(newVal); 
                 if (o !== n) { 
                     fields[fieldKey] = n; 
-                    rowChanges.push(`&nbsp;&nbsp;• ${label}: <del style="color:#94A3B8;">${fmtNum(o)}</del> ➔ <span style="color:var(--danger); font-weight:600;">${fmtNum(n)}</span>`); 
+                    uiRowChanges.push(`&nbsp;&nbsp;• ${label}: <del style="color:#94A3B8;">${fmtNum(o)}</del> ➔ <span style="color:var(--danger); font-weight:600;">${fmtNum(n)}</span>`); 
+                    dbRowChanges.push(`  • ${label}: ${fmtNum(o)} ➔ ${fmtNum(n)}`);
                 } 
             };
 
@@ -1915,31 +2015,72 @@
 
             tr.querySelectorAll('.adv-input').forEach(input => { let c = input.getAttribute('data-col'); checkNum(getVal(orig, c), input.value, c, c); });
 
-            // 修正2：將單筆旅客的各項變更使用 <br> 換行，並獨立區隔姓名標題
-            if (rowChanges.length > 0) { 
+            // 若有異動，推入雙軌陣列 (UI 用於確認視窗，Text 用於 GAS 資料庫)
+            if (uiRowChanges.length > 0) { 
                 updates.push({no: no, fields: fields}); 
-                changesLog.push(`<div style="margin-bottom: 4px; font-weight: 700; color: var(--primary);">NO.${no} ${orig.name} (ID: ${orig.id||'--'})</div>${rowChanges.join('<br>')}`); 
+                uiChangesLog.push(`<div style="margin-bottom: 4px; font-weight: 700; color: var(--primary);">NO.${no} ${orig.name} (ID: ${orig.id||'--'})</div>${uiRowChanges.join('<br>')}`); 
+                
+                // 確保完整收集數值，送到我們自訂的 Log 中
+                changesLog.push(`[資料變更明細] NO.${no} ${orig.name} (ID: ${orig.id||'--'})\n${dbRowChanges.join('\n')}`);
             }
         });
 
         if (updates.length === 0) return customAlert("無資料可更新！", "warning"); 
 
-        let confirmHtml = `<div style="text-align:left; max-height:400px; overflow-y:auto;">`;
+        let confirmHtml = `<div style="text-align:left; max-height: 60vh; overflow-y:auto;">`;
         confirmHtml += `<div style="margin-bottom:15px; color:var(--text-main); font-weight:600; font-size:13px;">以下 ${updates.length} 筆資料將被修改，請確認內容無誤：</div>`;
-        changesLog.forEach(line => {
+        uiChangesLog.forEach(line => {
             let escapedLine = String(line).replace(/'/g, "\\'");
             confirmHtml += `<div style="padding:10px 12px; margin-bottom:8px; background:var(--sys-bg); border-radius:6px; font-size:12px; line-height:1.6; border-left:3px solid var(--gold); color:var(--text-main); word-break:break-word;">${escapedLine}</div>`;
         });
         confirmHtml += `</div>`;
 
         document.querySelector('#custom-modal .modal-box').style.width = '800px';
-        document.querySelector('#custom-modal .modal-box').style.maxWidth = '90vw';
+        document.querySelector('#custom-modal .modal-box').style.maxWidth = '95vw';
 
-        const executeBatchUpdate = () => {
+        const executeBatchUpdate = async () => {
             showLoading("UPDATING...");
-            fetch(gasURL, { method: 'POST', body: JSON.stringify({ action: 'batchUpdateRows', updates: updates, changesLog: changesLog, operator: document.getElementById('current-username').innerText }) })
-            .then(res => res.json()).then(res => { hideLoading(); if(res.status === 'success') { isLogsDirty = true; customAlert(`整批寫入成功！`, "success"); searchList(); } else { customAlert("更新失敗：" + res.message, "error"); } })
-            .catch(err => { hideLoading(); customAlert("網路錯誤，請稍後再試。", "error"); });
+            try {
+                let res = await fetch(gasURL, { 
+                    method: 'POST', 
+                    body: JSON.stringify({ 
+                        action: 'batchUpdateRows', 
+                        updates: updates, 
+                        changesLog: changesLog, 
+                        operator: document.getElementById('current-username').innerText 
+                    }) 
+                });
+                let json = await res.json();
+                
+                if(json.status === 'success') { 
+                    isLogsDirty = true; 
+                    
+                    // 強制前端自行發送完整的數值 Log，避開後端攔截覆蓋！
+                    if (changesLog.length > 0) {
+                        let customLogText = changesLog.join('\n\n');
+                        await fetch(gasURL, {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                action: 'addCustomLog',
+                                operator: document.getElementById('current-username').innerText,
+                                target: '航程 ' + document.getElementById('search-groupCode').value,
+                                actionName: '更新資料',
+                                details: customLogText
+                            })
+                        });
+                    }
+
+                    hideLoading();
+                    customAlert(`整批寫入成功！`, "success"); 
+                    searchList(); 
+                } else { 
+                    hideLoading();
+                    customAlert("更新失敗：" + json.message, "error"); 
+                } 
+            } catch(err) {
+                hideLoading();
+                customAlert("網路錯誤，請稍後再試。", "error");
+            }
         };
 
         customConfirm(confirmHtml, executeBatchUpdate);
@@ -2819,10 +2960,9 @@
         XLSX.writeFile(wb, `帳款查詢報表_${dateSuffix}.xlsx`);
     }
 
-    // 全新升級 Timeline 與 Table 雙重呈現邏輯
     function renderLogsUI(data) {
         if (!data) data = window.globalLogCache || [];
-        window.globalLogCache = data; // 緩存
+        window.globalLogCache = data; 
         
         let kw = document.getElementById('log-search-kw').value.trim().toLowerCase();
         let startDateVal = document.getElementById('log-start-date').value;
@@ -2858,6 +2998,10 @@
             filteredData.forEach((log) => {
                 let dStr = log.time.split(' ')[0] || log.time;
                 let tStr = log.time.split(' ')[1] || '';
+                
+                let displayDetails = formatLogContentForDisplay(log.details);
+                let safeDetails = displayDetails.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                
                 html += `
                 <div class="timeline-item">
                     <div class="timeline-time">${dStr}<br><span style="font-weight:600; color:var(--primary); font-size:14px;">${tStr}</span></div>
@@ -2868,7 +3012,7 @@
                             <span style="font-size:11px; color:var(--text-light); background:var(--sys-bg); padding:4px 10px; border-radius:12px;">操作員: ${log.operator}</span>
                         </div>
                         <div style="font-size:13px; color:var(--accent); font-weight:600; margin-bottom:12px; display:inline-block; padding: 4px 8px; background: rgba(13, 148, 136, 0.05); border-radius: 4px;">影響對象：${log.target || '-'}</div>
-                        <pre style="margin:0; font-family:inherit; font-size:12px; color:var(--text-main); white-space:pre-wrap; line-height:1.6; background:#F8FAFC; padding:15px; border-radius:6px; border:1px solid #E2E8F0;">${log.details}</pre>
+                        <pre style="margin:0; font-family:inherit; font-size:12px; color:var(--text-main); white-space:pre-wrap; line-height:1.6; background:#F8FAFC; padding:15px; border-radius:6px; border:1px solid #E2E8F0;">${safeDetails}</pre>
                     </div>
                 </div>`;
             });
@@ -2889,7 +3033,8 @@
                     </thead>
                     <tbody>`;
             filteredData.forEach((log) => {
-                let rawDetails = String(log.details || ""); let summary = rawDetails.replace(/\n/g, ' ');
+                let cleanText = formatLogContentForDisplay(log.details);
+                let summary = cleanText.replace(/\n/g, ' ｜ ');
                 let idx = data.indexOf(log);
                 let detailHTML = `<td class="log-detail"><div class="log-row-container"><div class="log-summary" title="${summary.replace(/"/g, '&quot;')}">${summary}</div><div class="log-detail-link" onclick="showLogDetailsCache(${idx})">[查看明細]</div></div></td>`;
                 html += `<tr><td class="log-time">${log.time}</td><td class="log-op">${log.operator}</td><td class="log-target">${log.target || '-'}</td><td class="log-action">${log.action}</td>${detailHTML}</tr>`;
@@ -2933,7 +3078,10 @@
 
         if (filteredLogs.length === 0) return customAlert("查無資料", "warning");
         let exportData = [["時間", "操作人", "影響對象 (NO/ID/代號)", "動作類型", "詳細內容"]];
-        filteredLogs.forEach(log => { exportData.push([log.time || "", log.operator || "", log.target || "", log.action || "", log.details || ""]); });
+        filteredLogs.forEach(log => { 
+            let cleanDetails = formatLogContentForDisplay(log.details);
+            exportData.push([log.time || "", log.operator || "", log.target || "", log.action || "", cleanDetails]); 
+        });
 
         let wb = XLSX.utils.book_new(); let ws = XLSX.utils.aoa_to_sheet(exportData);
         XLSX.utils.book_append_sheet(wb, ws, "歷史紀錄");
