@@ -1783,7 +1783,8 @@
                 if (selectedNOs.length === 1) return customAlert("同房人數不可只有 1 人，請選擇 2~4 人，或清空代號以徹底解除同房。", "warning");
                 if (selectedNOs.length > 1) {
                     let roomTypes = new Set();
-                    selectedNOs.forEach(no => { let p = window.currentGroupData.find(d => String(d.no) === no); if(p && p.roomType) roomTypes.add(p.roomType); });
+                    selectedNOs.forEach(no => { let p = window.currentGroupData.find(d => String(d.no) === no); if(p) roomTypes.add(p.roomType || ''); });
+                    if (roomTypes.has('') && roomTypes.size > 1) return customAlert("有旅客尚未填寫房型，請先設定房型後再進行同房綁定！", "warning");
                     if (roomTypes.size > 1) return customAlert("同房的旅客必須為「相同房型」！", "warning");
                 }
             }
