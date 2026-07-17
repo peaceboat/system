@@ -47,9 +47,16 @@
     function fmtDate(val) {
         if (!val) return "";
         let str = String(val);
-        if (str.includes("T")) {
-            let parts = str.split("T");
-            if(parts[0].match(/^\d{4}-\d{2}-\d{2}$/)) return parts[0].replace(/-/g, '/');
+        // 後端傳回的是 UTC 完整時間戳記字串（例如 2024-01-14T16:00:00.000Z），
+        // 若直接取 T 前面的日期字串，取到的是 UTC 的日期，在台灣時區（+8）會比實際日期早一天。
+        // 必須先解析成 Date 物件，再用瀏覽器本地時區（台灣）的年月日取值，才會是正確的日期。
+        if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
+            let d = new Date(str);
+            if (!isNaN(d)) {
+                let m = String(d.getMonth() + 1).padStart(2, '0');
+                let day = String(d.getDate()).padStart(2, '0');
+                return `${d.getFullYear()}/${m}/${day}`;
+            }
         }
         let parsed = new Date(str);
         if (!isNaN(parsed) && str.includes("GMT")) {
@@ -1849,7 +1856,16 @@
     // 帳款查詢系統功能實作
     function parseDateSafely(dStr) {
         if (!dStr) return 0;
-        let clean = String(dStr).split('T')[0].split(' ')[0].replace(/\//g, '-');
+        let str = String(dStr);
+        // 完整 UTC 時間戳記字串：換算成本地時區（台灣）的實際日期，再組成當地午夜的時間戳，
+        // 避免跟後面用「本地時間 00:00:00」建立的區間邊界比較時，因時區差異而早算一天。
+        if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
+            let d = new Date(str);
+            if (isNaN(d)) return 0;
+            return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        }
+        // 純日期字串（無時間資訊）：改用「/」而非「-」分隔，確保瀏覽器用「本地時區」解析，而不是被當成 UTC 午夜。
+        let clean = str.split('T')[0].split(' ')[0].replace(/-/g, '/');
         let t = new Date(clean).getTime();
         return isNaN(t) ? 0 : t;
     }
