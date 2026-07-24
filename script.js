@@ -960,13 +960,14 @@
             if(!["NO","備註或需求","旅客姓名","NAME","Status"].includes(c)) {
                 let w = "75px";
                 if(c === "房型") w = "270px";
-                if(c === "登船港" || c === "離船港" || c === "ID" || c === "訂編" || c === "業務") w = "105px";
+                if(c === "登船港" || c === "離船港" || c === "訂編" || c === "業務") w = "105px";
+                if(c === "ID") w = "75px";
                 if(c === "生日") w = "110px"; 
                 if(c === "報名來源") w = "150px";
                 if(c === "各種優惠價/船內特典") w = "200px";
                 if(c === "基本旅費總價" || c === "SET應付" || c === "名義變更金額") w = "95px";
                 if(c === "佣金" || c === "區段") w = "80px";
-                if(c === "性別") w = "60px";
+                if(c === "性別") w = "90px";
                 
                 let displayC = c;
                 if (customFilterCols.includes(c)) {
