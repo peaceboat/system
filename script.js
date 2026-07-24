@@ -946,9 +946,9 @@
         const currentGroupCode = document.getElementById('search-groupCode').value || "未知";
         let advCols = ["港務費", "小費", "SF船費", "JGD", "AGTD", "下鋪指定A", "下鋪指定B", "免治馬桶", "國際旅客稅", "阿拉斯加稅", "無障礙房型", "房型升等", "其他追加費用", "海報志工優惠折扣金"];
         
-        let targetCols = ["NO","備註或需求","旅客姓名","NAME","Status","ID","生日","報名來源","老客","區段","當月優惠價","各種優惠價/船內特典","Coupon船內預存金","Coupon船內優惠券","房型","登船港","離船港","基本旅費總價","佣金%","佣金","名義變更金額","SET應付","業務","訂編"];
+        let targetCols = ["NO","備註或需求","旅客姓名","NAME","Status","ID","性別","生日","報名來源","老客","區段","當月優惠價","各種優惠價/船內特典","Coupon船內預存金","Coupon船內優惠券","房型","登船港","離船港","基本旅費總價","佣金%","佣金","名義變更金額","SET應付","業務","訂編"];
         
-        let customFilterCols = ["當月優惠價", "各種優惠價/船內特典", "報名來源", "旅客姓名", "NAME", "ID", "備註或需求", "房型", "業務", "區段"];
+        let customFilterCols = ["當月優惠價", "各種優惠價/船內特典", "報名來源", "旅客姓名", "NAME", "ID", "備註或需求", "房型", "業務", "區段", "性別"];
         
         let activeClsNo = activeColFilters['NO'] ? 'active' : '';
         let headHtml = `<tr>
@@ -966,6 +966,7 @@
                 if(c === "各種優惠價/船內特典") w = "200px";
                 if(c === "基本旅費總價" || c === "SET應付" || c === "名義變更金額") w = "95px";
                 if(c === "佣金" || c === "區段") w = "80px";
+                if(c === "性別") w = "60px";
                 
                 let displayC = c;
                 if (customFilterCols.includes(c)) {
@@ -994,7 +995,7 @@
         listBody.innerHTML = "";
 
         if(!window.currentGroupData || window.currentGroupData.length === 0) { 
-            listBody.innerHTML = '<tr><td colspan="50" style="text-align:center; padding:50px;">此航程無資料</td></tr>';
+            listBody.innerHTML = '<tr><td colspan="50" style="text-align:center; color:var(--text-light); padding: 80px; font-size:13px;">請先搜尋航程以載入名單統計</td></tr>';
             document.getElementById('list-stats').innerText = "請先搜尋航程以載入名單統計";
             return; 
         }
@@ -1184,6 +1185,11 @@
                 <td class="sticky-2" style="background-color: inherit; overflow:visible;"><div style="display:flex; align-items:center; width:100%;"><span class="status-dot ${dotClass}"></span><input type="text" class="td-input edit-name" value="${item.name}" style="flex:1; min-width:60px; font-weight:600; color:inherit;" ${lockAttr}>${tagHTML}</div></td>
                 <td class="sticky-3" style="background-color: inherit;"><input type="text" class="td-input edit-ename" value="${item.ename}" style="text-transform:uppercase;" ${lockAttr}></td>
                 <td><input type="text" class="td-input edit-id" value="${item.id || ''}" ${lockAttr}></td>
+                <td><select class="td-input edit-gender">
+                    <option value="" ${!getVal(item,"性別")?'selected':''}></option>
+                    <option value="F" ${getVal(item,"性別")==='F'?'selected':''}>女 (F)</option>
+                    <option value="M" ${getVal(item,"性別")==='M'?'selected':''}>男 (M)</option>
+                </select></td>
                 <td><input type="text" class="td-input edit-birth" value="${fmtDate(getVal(item, "生日"))}" ${lockAttr}></td>
                 <td><input type="text" class="td-input edit-source" value="${getVal(item, "報名來源")}" ${lockAttr}></td>
                 <td><input type="text" class="td-input edit-oldCustomer" value="${getVal(item, "老客")}" ${lockAttr}></td>
@@ -1331,6 +1337,7 @@
             checkStr(getVal(orig, "旅客姓名"), tr.querySelector('.edit-name').value, '旅客姓名', '旅客姓名');
             checkStr(getVal(orig, "NAME"), tr.querySelector('.edit-ename').value.toUpperCase(), 'NAME', 'NAME');
             checkStr(orig.id || '', tr.querySelector('.edit-id').value, 'ID', 'ID');
+            checkStr(getVal(orig, "性別"), tr.querySelector('.edit-gender').value, '性別', '性別');
             checkStr(fmtDate(getVal(orig, "生日")), tr.querySelector('.edit-birth').value, '生日', '生日');
             checkStr(getVal(orig, "報名來源"), tr.querySelector('.edit-source').value, '報名來源', '報名來源');
             checkStr(getVal(orig, "老客"), tr.querySelector('.edit-oldCustomer').value, '老客', '老客');
