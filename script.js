@@ -563,8 +563,8 @@
                     <div class="input-group"><label style="color:var(--danger);">AGT D (填正數) </label><input type="text" class="h-agtd" value="0" oninput="autoCalcPrice(${num})" onfocus="unformatNum(this)" onblur="formatNumInput(this); autoCalcPrice(${num})"></div>
                 </div>
                 <div class="grid-5" style="margin-bottom: 15px;">
-                    <div class="input-group"><label>下鋪A</label><select class="h-subA" onchange="autoCalcPrice(${num})"><option value="0">0</option></select></div>
-                    <div class="input-group"><label>下鋪B</label><select class="h-subB" onchange="autoCalcPrice(${num})"><option value="0">0</option></select></div>
+                    <div class="input-group"><label>下鋪A (上面沒床)</label><select class="h-subA" onchange="autoCalcPrice(${num})"><option value="0">0</option></select></div>
+                    <div class="input-group"><label>下鋪B (上面有床)</label><select class="h-subB" onchange="autoCalcPrice(${num})"><option value="0">0</option></select></div>
                     <div class="input-group"><label>免治馬桶</label><input type="text" class="h-toilet" value="0" oninput="autoCalcPrice(${num})" onfocus="unformatNum(this)" onblur="formatNumInput(this); autoCalcPrice(${num})"></div>
                     <div class="input-group"><label>國際旅客稅</label><input type="text" class="h-intlTax" value="0" oninput="autoCalcPrice(${num})" onfocus="unformatNum(this)" onblur="formatNumInput(this); autoCalcPrice(${num})"></div>
                     <div class="input-group"><label>阿拉斯加稅</label><input type="text" class="h-alaskaTax" value="0" oninput="autoCalcPrice(${num})" onfocus="unformatNum(this)" onblur="formatNumInput(this); autoCalcPrice(${num})"></div>
