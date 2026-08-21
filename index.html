@@ -434,7 +434,16 @@
   
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  
+
+  // 讓 script.js（非 module 環境）能取得目前登入者的 Firebase ID Token，
+  // 用於每次呼叫 GAS API 時附帶身分驗證。Token 由 SDK 自動管理與更新，
+  // 一般約 1 小時效期，快過期時 getIdToken() 會自動換發新的，呼叫端無需處理。
+  window.firebaseAuth = auth;
+  window.getIdToken = function() {
+    if (!auth.currentUser) return Promise.resolve(null);
+    return auth.currentUser.getIdToken().catch(() => null);
+  };
+
   onAuthStateChanged(auth, (user) => {
     if (user) {
       document.getElementById('login-overlay').style.display = 'none';
