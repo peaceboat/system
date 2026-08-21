@@ -125,7 +125,8 @@
         <option value="Semi Single Outside Ⅱ-F2-(半單)海景房II">Semi Single Outside Ⅱ-F2-(半單)海景房II</option>
         <option value="Semi Single Inside-G2-(半單)內艙房">Semi Single Inside-G2-(半單)內艙房</option>
         <option value="Friendly Outside Ⅱ-F4-(友好)海景房II">Friendly Outside Ⅱ-F4-(友好)海景房II</option>
-        <option value="Friendly Inside-G3-(友好)內艙房">Friendly Inside-G3-(友好)內艙房</option>
+        <option value="Friendly Inside I-G3-(友好)內艙三人房">Friendly Inside I-G3-(友好)內艙三人房</option>
+        <option value="Friendly Inside II-H4-(友好)內艙四人房">Friendly Inside II-H4-(友好)內艙四人房</option>
         <option value="Friendly inside young-Y-(青年價)內艙房">Friendly inside young-Y-(青年價)內艙房</option>
     `;
 
