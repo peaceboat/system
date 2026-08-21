@@ -1,16 +1,28 @@
-    function currentUser() { return document.getElementById('current-username').innerText; }
+function currentUser() { return document.getElementById('current-username').innerText; }
 
     // 統一封裝 POST 請求樣板，回傳值與原本的 fetch(...) 完全相同（一個 Promise<Response>），
     // 所以呼叫端原有的 .then(res => res.json()) 或 await fetch(...) 寫法都不需要更動。
+    // 每次呼叫都會自動附上目前登入者的 Firebase ID Token，交由 GAS 後端驗證身分。
     function gasPost(action, payload = {}) {
-        return fetch(gasURL, { method: 'POST', body: JSON.stringify({ action: action, ...payload }) });
+        return getIdToken().then(function(idToken) {
+            return fetch(gasURL, { method: 'POST', body: JSON.stringify({ action: action, idToken: idToken, ...payload }) });
+        });
+    }
+
+    // 統一封裝 GET 請求：傳入從 "?action=..." 開始的查詢字串，自動附加 idToken。
+    // 回傳值同樣是 Promise<Response>，呼叫端原有的 .then(res => res.json()) / await 寫法不需更動。
+    function gasGet(queryString) {
+        return getIdToken().then(function(idToken) {
+            const sep = queryString.indexOf('?') === -1 ? '?' : '&';
+            return fetch(gasURL + queryString + sep + "idToken=" + encodeURIComponent(idToken || ""));
+        });
     }
 
     // 在目前的航程搜尋結果下，靜默重新抓取名單並重繪（不開關 loading，交由呼叫端自行控制）
     function refreshCurrentList() {
         const groupCode = document.getElementById('search-groupCode').value;
         if (!groupCode) return Promise.resolve();
-        return fetch(gasURL + "?action=searchOrders&groupCode=" + encodeURIComponent(groupCode) + "&t=" + Date.now())
+        return gasGet("?action=searchOrders&groupCode=" + encodeURIComponent(groupCode) + "&t=" + Date.now())
             .then(res => res.json())
             .then(res => { if (res.status === 'success') { window.currentGroupData = res.data; window.currentGroupHeaders = res.headers; renderList(); } })
             .catch(() => {});
@@ -275,7 +287,7 @@
     window.onload = function() {
         const statusEl = document.getElementById('system-status');
         const t = new Date().getTime();
-        fetch(gasURL + "?action=getPriceData&t=" + t).then(res => res.json()).then(res => { 
+        gasGet("?action=getPriceData&t=" + t).then(res => res.json()).then(res => { 
             if(res.status === 'success') { 
                 priceDict = res.data; 
                 window.voyageDefaults = res.voyageDefaults || {}; 
@@ -286,7 +298,7 @@
                 groupCodeInput.placeholder = "手動輸入或選擇";
             } 
         });
-        fetch(gasURL + "?action=getGroupList&t=" + t).then(res => res.json()).then(res => { if(res.status === 'success') { const datalist = document.getElementById('groupOptions'); datalist.innerHTML = ""; res.data.forEach(group => { const opt = document.createElement('option'); opt.value = group; datalist.appendChild(opt); }); } });
+        gasGet("?action=getGroupList&t=" + t).then(res => res.json()).then(res => { if(res.status === 'success') { const datalist = document.getElementById('groupOptions'); datalist.innerHTML = ""; res.data.forEach(group => { const opt = document.createElement('option'); opt.value = group; datalist.appendChild(opt); }); } });
     };
 
     function switchTab(id) { document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active')); document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active')); document.getElementById(id).classList.add('active'); document.querySelector(`.nav-tab[onclick="switchTab('${id}')"]`).classList.add('active'); if(id === 'page-logs') loadLogs(false); }
@@ -325,7 +337,7 @@
         const step2 = document.getElementById('step-2-container'); step2.style.display = 'block'; setTimeout(() => step2.style.opacity = '1', 50);
         if (passengerCount === 0) addPassenger();
         const t = new Date().getTime();
-        fetch(gasURL + "?action=getExistingPassengers&groupCode=" + encodeURIComponent(groupCode) + "&t=" + t).then(res => res.json()).then(res => { if(res.status === 'success') { existingPassengers = res.data; updateAllJoinSelects(); } });
+        gasGet("?action=getExistingPassengers&groupCode=" + encodeURIComponent(groupCode) + "&t=" + t).then(res => res.json()).then(res => { if(res.status === 'success') { existingPassengers = res.data; updateAllJoinSelects(); } });
         for(let i=1; i<=blockCounter; i++) { applyVoyageDefaults(i); autoCalcPrice(i); }
     }
 
@@ -719,7 +731,7 @@
                     passengerCount = 0; blockCounter = 0; window.scrollTo({ top: 0, behavior: 'smooth' }); 
                     
                     const t = new Date().getTime(); 
-                    fetch(gasURL + "?action=getGroupList&t=" + t).then(r => r.json()).then(r => { 
+                    gasGet("?action=getGroupList&t=" + t).then(r => r.json()).then(r => { 
                         if(r.status === 'success') { 
                             const datalist = document.getElementById('groupOptions'); 
                             datalist.innerHTML = ""; 
@@ -751,7 +763,7 @@
         const groupCode = document.getElementById('search-groupCode').value;
         if(!groupCode) { customAlert("請先輸入或選擇欲搜尋的航程代碼", "warning"); return; } showLoading();
         const t = new Date().getTime();
-        fetch(gasURL + "?action=searchOrders&groupCode=" + encodeURIComponent(groupCode) + "&t=" + t).then(res => res.json()).then(res => { hideLoading(); if(res.status === 'success') { window.currentGroupData = res.data; window.currentGroupHeaders = res.headers; renderList(); } }).catch(err => { hideLoading(); customAlert("網路連線異常，請稍後再試", "error"); });
+        gasGet("?action=searchOrders&groupCode=" + encodeURIComponent(groupCode) + "&t=" + t).then(res => res.json()).then(res => { hideLoading(); if(res.status === 'success') { window.currentGroupData = res.data; window.currentGroupHeaders = res.headers; renderList(); } }).catch(err => { hideLoading(); customAlert("網路連線異常，請稍後再試", "error"); });
     }
 
     function sortByNoOnly() {
@@ -1497,7 +1509,7 @@
             customAlert("檢核完成，目前名單無任何異常項目！", "success");
         } else {
             try {
-                let logRes = await fetch(gasURL + "?action=getLogs&t=" + new Date().getTime());
+                let logRes = await gasGet("?action=getLogs&t=" + new Date().getTime());
                 let logData = await logRes.json();
                 let logs = logData.data || [];
                 
@@ -1913,7 +1925,7 @@
             let chunk = groupList.slice(i, i + chunkSize);
             await Promise.all(chunk.map(async g => {
                 try {
-                    let res = await fetch(gasURL + "?action=searchOrders&groupCode=" + encodeURIComponent(g) + "&t=" + Date.now());
+                    let res = await gasGet("?action=searchOrders&groupCode=" + encodeURIComponent(g) + "&t=" + Date.now());
                     let json = await res.json();
                     if (json.status === 'success' && json.data.length > 0) {
                         json.headers.forEach(h => accAllPossibleCols.add(h));
@@ -1960,7 +1972,7 @@
         if(!g) return customAlert("請先輸入航程代碼", "warning");
         showLoading();
         try {
-            let res = await fetch(gasURL + "?action=searchOrders&groupCode=" + encodeURIComponent(g) + "&t=" + Date.now());
+            let res = await gasGet("?action=searchOrders&groupCode=" + encodeURIComponent(g) + "&t=" + Date.now());
             let json = await res.json();
             hideLoading();
             if(json.status === 'success' && json.data.length > 0) {
@@ -2409,7 +2421,7 @@
     function loadLogs(forceRefresh = false) {
         if (!forceRefresh && !isLogsDirty && cachedLogs) { renderLogsUI(cachedLogs); return; }
         document.getElementById('logs-view-container').innerHTML = '<div style="text-align:center; padding:80px; font-weight:600; letter-spacing:0.2em; color:var(--primary);">LOADING...</div>';
-        fetch(gasURL + "?action=getLogs&t=" + new Date().getTime()).then(res => res.json()).then(res => { 
+        gasGet("?action=getLogs&t=" + new Date().getTime()).then(res => res.json()).then(res => { 
             if(res.status === 'success') { 
                 cachedLogs = res.data; 
                 isLogsDirty = false; 
