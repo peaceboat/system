@@ -404,6 +404,9 @@
             } else if (fullRoomType.includes("F4")) {
                 optA = ['0'];
                 optB = ['0', '44000'];
+            } else if (fullRoomType.includes("H4")) {
+                optA = ['0', '22000'];
+                optB = ['0', '22000'];
             }
             subASelect.innerHTML = optA.map(v => `<option value="${v}">${v==='0'?'0':fmtNum(v)}</option>`).join('');
             subBSelect.innerHTML = optB.map(v => `<option value="${v}">${v==='0'?'0':fmtNum(v)}</option>`).join('');
