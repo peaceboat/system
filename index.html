@@ -438,13 +438,25 @@
   // 讓 script.js（非 module 環境）能取得目前登入者的 Firebase ID Token，
   // 用於每次呼叫 GAS API 時附帶身分驗證。Token 由 SDK 自動管理與更新，
   // 一般約 1 小時效期，快過期時 getIdToken() 會自動換發新的，呼叫端無需處理。
+  //
+  // 這裡刻意等待 Firebase「第一次」判斷完登入狀態（authReadyPromise）之後，
+  // 才嘗試讀取 currentUser：因為 onAuthStateChanged 是非同步的，頁面剛載入的
+  // 瞬間 auth.currentUser 可能還是 null（不代表沒登入，只是還沒判斷完），
+  // 如果太早呼叫 getIdToken() 會誤判成未登入，導致像 window.onload 這種
+  // 「頁面一載入就立刻呼叫 API」的地方持續卡在「資料載入中」。
+  let authReadyResolve;
+  const authReadyPromise = new Promise((resolve) => { authReadyResolve = resolve; });
+
   window.firebaseAuth = auth;
   window.getIdToken = function() {
-    if (!auth.currentUser) return Promise.resolve(null);
-    return auth.currentUser.getIdToken().catch(() => null);
+    return authReadyPromise.then(function() {
+      if (!auth.currentUser) return null;
+      return auth.currentUser.getIdToken().catch(() => null);
+    });
   };
 
   onAuthStateChanged(auth, (user) => {
+    authReadyResolve();
     if (user) {
       document.getElementById('login-overlay').style.display = 'none';
       document.getElementById('main-app').style.display = 'block';
